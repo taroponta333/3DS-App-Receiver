@@ -12,20 +12,22 @@ jobs:
 
     - name: Compile EBOOT.PBP Directly
       run: |
-        # 1. コンパイル
-        /usr/local/pspdev/bin/psp-gcc -I/usr/local/pspdev/psp/include -I/usr/local/pspdev/psp/sdk/include -L/usr/local/pspdev/psp/sdk/lib -O2 -G0 -Wall -D_PSP_FW_VERSION=600 main.c \
+        # 1. コンパイル：必須オプション(-fPIC, -mpsp=kernel)を追加
+        /usr/local/pspdev/bin/psp-gcc -I/usr/local/pspdev/psp/include -I/usr/local/pspdev/psp/sdk/include -L/usr/local/pspdev/psp/sdk/lib -O2 -G0 -Wall -fPIC -mpsp=kernel -D_PSP_FW_VERSION=600 main.c \
         -lpspdebug -lpspvfpu -lpspdisplay -lpspgu -lpspgum -lpspge -lpspnet_apctl -lpspnet_resolver -lpspnet_inet -lpspnet -lpsputility -lpspuser -lpspkernel \
         -o 3ds_receiver.elf
         
         # 2. PRX生成
         /usr/local/pspdev/bin/psp-prxgen 3ds_receiver.elf 3ds_receiver.prx
         
-        # 3. ✨ここで PARAM.SFO を生成（これが抜けていました！）
+        # 3. PARAM.SFO 生成
         /usr/local/pspdev/bin/mksfoex -d MEMSIZE=1 "3DS File Receiver" PARAM.SFO
         
         # 4. パッケージング
-        /usr/local/pspdev/bin/pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL 3ds_receiver.prx NULL    - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-          with:
+        /usr/local/pspdev/bin/pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL 3ds_receiver.prx NULL
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
         name: PSP-Receiver-EBOOT
         path: EBOOT.PBP
