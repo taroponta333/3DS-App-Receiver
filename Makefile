@@ -12,6 +12,6 @@ LIBS = -lpspnet_apctl -lpspnet_resolver -lpspnet_inet -lpspnet -lpsputility
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = 3DS File Receiver
 
-# ✨ 最新コンテナの正しいSDKパスを指定
-PSPSDK=$(shell psp-config --pspsdk-path)
-include $(PSPSDK)/build.make
+# ✨ 最新コンテナの環境変数をそのまま使う最も安全な指示
+PSPSDK = $(shell psp-config --pspsdk-path)
+include $(PSPSDK)/lib/build.make
