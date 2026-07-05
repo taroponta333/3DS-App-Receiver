@@ -10,13 +10,31 @@ jobs:
     container: pspdev/pspdev:latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug PSP SDK
+        run: |
+          echo "=== psp-config ==="
+          which psp-config || true
+
+          echo "=== PSPDEV PATH ==="
+          psp-config --pspdev-path || true
+
+          echo "=== PSPSDK PATH ==="
+          psp-config --pspsdk-path || true
+
+          echo "=== Looking for build.mak/build.make ==="
+          find /usr/local/pspdev -name "build.mak" -o -name "build.make"
 
       - name: Build
         run: make
 
-      - name: Upload EBOOT
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PSP-Receiver-EBOOT
-          path: EBOOT.PBP
+          path: |
+            EBOOT.PBP
+            *.elf
+            *.prx
