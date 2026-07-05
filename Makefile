@@ -5,7 +5,18 @@ CFLAGS = -O2 -G0 -Wall
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
-LIBS = -lpspnet_apctl -lpspnet_resolver -lpspnet_inet -lpspnet -lpsputility
+LIBS = \
+-lpspdebug \
+-lpspvfpu \
+-lpspdisplay \
+-lpspgu \
+-lpspgum \
+-lpspge \
+-lpspnet_apctl \
+-lpspnet_resolver \
+-lpspnet_inet \
+-lpspnet \
+-lpsputility
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = 3DS File Receiver
