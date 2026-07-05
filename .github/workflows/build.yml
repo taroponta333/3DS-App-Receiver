@@ -1,0 +1,30 @@
+name: Build PSP Receiver
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # ボタンをポチッと押して手動ビルドもできるようにする設定
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # PSPの開発環境が全部詰まった公式のDockerイメージを使用
+    container: pspdev/pspdev:latest
+
+    steps:
+    # リポジトリのコードを読み込む
+    - uses: actions/checkout@v4
+
+    # Makefileに従ってビルドを実行
+    - name: Compile EBOOT.PBP
+      run: |
+        make
+
+    # 出来上がった EBOOT.PBP をGitHub上に保存（ダウンロード可能にする）
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: PSP-Receiver-EBOOT
+        path: EBOOT.PBP
