@@ -13,5 +13,4 @@ EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = 3DS File Receiver
 
 # ✨ 最新コンテナの環境変数をそのまま使う最も安全な指示
-PSPSDK = $(shell psp-config --pspsdk-path)
-include $(PSPSDK)/lib/build.make
+include /usr/local/pspdev/psp/sdk/lib/build.make
