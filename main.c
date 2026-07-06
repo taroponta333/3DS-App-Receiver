@@ -11,9 +11,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
-#include <pspctrl.h> // ✨ ボタン入力を監視するために追加
+#include <pspctrl.h>
+#include <pspdisplay.h> // ✨ sceDisplayWaitVblankStart のために追加
 
-// モジュール情報をカーネル寄りに変更して安定化
 PSP_MODULE_INFO("3DS_Receiver", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
@@ -23,7 +23,7 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 int exit_request = 0;
 
-// 標準の終了コールバック（HOMEメニュー用、ダイアログなしで即終了する安全版）
+// 標準の終了コールバック（HOMEボタン時はダイアログなしで安全に即終了）
 int exit_callback(int arg1, int arg2, void *common) {
     exit_request = 1;
     return 0;
@@ -35,11 +35,12 @@ int callback_thread(SceSize args, void *argp) {
     return 0;
 }
 void setup_callbacks(void) {
-    int thid = sceKernelCreateThread("update_thread", callback_thread=, 0x11, 0xFA0, 0, 0);
+    // タイポ（=）を修正
+    int thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// アプリ内で「本当に終了しますか？」を出す安全な関数
+// アプリ内で「本当に終了しますか？」を出す安全な関数（SDK仕様変更に対応）
 int show_exit_dialog(void) {
     pspUtilityMsgDialogParams dialog;
     memset(&dialog, 0, sizeof(dialog));
@@ -53,24 +54,25 @@ int show_exit_dialog(void) {
     dialog.base.soundThread = 16;
     
     dialog.mode = PSP_UTILITY_MSGDIALOG_MODE_TEXT;
-    dialog.option = PSP_UTILITY_MSGDIALOG_OPTION_YESNO;
+    // SDKの仕様に合わせて options / OPTION_TEXT に修正
+    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_TEXT; 
     snprintf(dialog.message, 512, "Do you want to quit the application?");
 
     sceUtilityMsgDialogInitStart(&dialog);
 
     while (1) {
         int status = sceUtilityMsgDialogGetStatus();
-        if (status == PSP_UTILITY_DIALOG_STATUS_RUNNING) {
+        // SDKの仕様に合わせて STATUS ではなく DIALOG_FINISHED / RUNNING に修正
+        if (status == PSP_UTILITY_DIALOG_RUNNING) {
             sceUtilityMsgDialogUpdate(1);
-        } else if (status == PSP_UTILITY_DIALOG_STATUS_FINISHED) {
+        } else if (status == PSP_UTILITY_DIALOG_FINISHED) {
             if (dialog.buttonPressed == PSP_UTILITY_MSGDIALOG_RESULT_YES) {
                 sceUtilityMsgDialogShutdownStart();
-                return 1; // 終了する
+                return 1;
             }
             sceUtilityMsgDialogShutdownStart();
-            return 0; // 戻る
+            return 0;
         }
-        // ループの暴走を防ぐために長めのウェイトを入れる
         sceDisplayWaitVblankStart(); 
     }
 }
@@ -112,7 +114,6 @@ int main(void) {
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
 
-    // 通信のタイムアウトを短くしてループを回しやすくする
     struct timeval timeout = {0, 500000}; // 0.5秒
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
@@ -127,11 +128,11 @@ int main(void) {
     printf("Waiting for 3DS broadcast... (Press TRIANGLE to quit)\n");
 
     while (!exit_request) {
-        // ✨ ボタン入力を監視（毎ループチェック）
         sceCtrlPeekBufferPositive(&pad, 1);
-        if (pad.buttons & PSP_CTRL_TRIANGLE) { // △ボタンが押されたら
+        // SDKの仕様に合わせて Buttons (大文字) に修正
+        if (pad.Buttons & PSP_CTRL_TRIANGLE) { 
             if (show_exit_dialog()) {
-                break; // ループを抜けて安全に終了
+                break; 
             } else {
                 printf("Waiting for 3DS broadcast... (Press TRIANGLE to quit)\n");
             }
