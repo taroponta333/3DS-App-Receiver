@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <pspctrl.h>
-#include <pspdisplay.h> // ✨ sceDisplayWaitVblankStart のために追加
+#include <pspdisplay.h>
 
 PSP_MODULE_INFO("3DS_Receiver", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -23,7 +23,6 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 int exit_request = 0;
 
-// 標準の終了コールバック（HOMEボタン時はダイアログなしで安全に即終了）
 int exit_callback(int arg1, int arg2, void *common) {
     exit_request = 1;
     return 0;
@@ -35,12 +34,11 @@ int callback_thread(SceSize args, void *argp) {
     return 0;
 }
 void setup_callbacks(void) {
-    // タイポ（=）を修正
     int thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// アプリ内で「本当に終了しますか？」を出す安全な関数（SDK仕様変更に対応）
+// アプリ内で「本当に終了しますか？」を出す安全な関数
 int show_exit_dialog(void) {
     pspUtilityMsgDialogParams dialog;
     memset(&dialog, 0, sizeof(dialog));
@@ -54,7 +52,6 @@ int show_exit_dialog(void) {
     dialog.base.soundThread = 16;
     
     dialog.mode = PSP_UTILITY_MSGDIALOG_MODE_TEXT;
-    // SDKの仕様に合わせて options / OPTION_TEXT に修正
     dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_TEXT; 
     snprintf(dialog.message, 512, "Do you want to quit the application?");
 
@@ -62,8 +59,9 @@ int show_exit_dialog(void) {
 
     while (1) {
         int status = sceUtilityMsgDialogGetStatus();
-        // SDKの仕様に合わせて STATUS ではなく DIALOG_FINISHED / RUNNING に修正
-        if (status == PSP_UTILITY_DIALOG_RUNNING) {
+        
+        // ✨ エラーの原因だった部分を「VISIBLE」に修正
+        if (status == PSP_UTILITY_DIALOG_VISIBLE) { 
             sceUtilityMsgDialogUpdate(1);
         } else if (status == PSP_UTILITY_DIALOG_FINISHED) {
             if (dialog.buttonPressed == PSP_UTILITY_MSGDIALOG_RESULT_YES) {
@@ -129,8 +127,7 @@ int main(void) {
 
     while (!exit_request) {
         sceCtrlPeekBufferPositive(&pad, 1);
-        // SDKの仕様に合わせて Buttons (大文字) に修正
-        if (pad.Buttons & PSP_CTRL_TRIANGLE) { 
+        if (pad.Buttons & PSP_CTRL_TRIANGLE) { // △ボタンが押されたら
             if (show_exit_dialog()) {
                 break; 
             } else {
