@@ -39,20 +39,13 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// 🌐 ネット接続ダイアログ（ChatGPTの指摘通り、.baseを完全に排除！）
+// 🌐 古いPSPSDKに100%適合させたネット接続ダイアログ
 int show_network_connect_dialog(void) {
     pspUtilityNetconfData data;
     memset(&data, 0, sizeof(data));
     
-    // NetconfDataには「base」がありません。直接指定します。
+    // 古いSDKでは .base は無く、項目も size と action だけの極小構造です
     data.size = sizeof(data);
-    data.language = 1;      // 1 = 日本語
-    data.buttonSwap = 0;    // 0 = ○ボタン決定
-    data.graphicsThread = 17;
-    data.accessThread = 19;
-    data.fontThread = 18;
-    data.soundThread = 16;
-    
     data.action = 2;             // 2 = アクセスポイントに接続するモード
 
     int ret = sceUtilityNetconfInitStart(&data);
@@ -69,9 +62,9 @@ int show_network_connect_dialog(void) {
         sceDisplayWaitVblankStart();
     }
 
-    // 接続状態の確認 (4 = STATE_GOTIP)
+    // 接続状態の確認 (コンパイラ指定の正式名称 PSP_NET_APCTL_STATE_GOT_IP を使用)
     int ap_status;
-    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) {
+    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == PSP_NET_APCTL_STATE_GOT_IP) {
         return 0; // 接続成功
     }
     return -1;
@@ -91,21 +84,18 @@ void safe_exit(const char *error_msg) {
     sceKernelExitGame();
 }
 
-// ⚠️ メッセージダイアログ側は、仕様通り「.base」が必要です！
+// ⚠️ 古いPSPSDK用のメッセージダイアログ（.baseなし、正しいメンバー名に固定）
 int show_exit_dialog(void) {
     pspUtilityMsgDialogParams dialog;
     memset(&dialog, 0, sizeof(dialog));
     
-    dialog.base.size = sizeof(dialog);
-    dialog.base.language = 1;    // 1 = 日本語
-    dialog.base.buttonSwap = 0;
-    dialog.base.graphicsThread = 17;
-    dialog.base.accessThread = 19;
-    dialog.base.fontThread = 18;
-    dialog.base.soundThread = 16;
+    // 古いSDKでは .base を挟まず直下にメンバが並びます
+    dialog.size = sizeof(dialog);
+    dialog.language = 1;    // 1 = 日本語
+    dialog.buttonSwap = 0;  // 0 = ○ボタン決定
     
     dialog.mode = PSP_UTILITY_MSGDIALOG_MODE_TEXT;
-    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_YESNO; // YES/NOボタン表示
+    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_YESNO; // YES/NOボタン
     snprintf(dialog.message, 512, "Do you want to quit the application?");
 
     sceUtilityMsgDialogInitStart(&dialog);
@@ -211,10 +201,13 @@ int main(void) {
     const int STATUS_LINE_Y = 8;
     const int PROGRESS_LINE_Y = 10;
 
-    // 現在のIPアドレスを取得して表示
+    // 🛠️ 型エラーを修正：構造体 apinfo 経由で安全に IP 文字列をコピーします
     char my_ip[32] = "Unknown";
     union SceNetApctlInfo apinfo;
-    if(sceNetApctlGetInfo(PSP_NET_APCTL_INFO_IP,&apinfo)==0){strncpy(my_ip,apinfo.ip,sizeof(my_ip)-1);my_ip[sizeof(my_ip)-1]=0;} 
+    if (sceNetApctlGetInfo(8, &apinfo) == 0) { // 8 = PSP_NET_APCTL_INFO_IP
+        strncpy(my_ip, apinfo.ip, sizeof(my_ip) - 1);
+        my_ip[sizeof(my_ip) - 1] = 0;
+    } 
     
     pspDebugScreenSetXY(0, 5);
     printf("[SYS] Wi-Fi Connected! IP: %s\n", my_ip);
@@ -280,7 +273,7 @@ int main(void) {
             }
             print_status_line(PROGRESS_LINE_Y, progress_msg);
 
-            // 🛠️ 安全ロジック：データが指定サイズまで届ききったら正常終了
+            // データが指定サイズまで届ききったら正常終了
             if (total_file_size > 0 && received_bytes_sum >= total_file_size) {
                 if (file) fclose(file); 
                 file = NULL;
@@ -289,7 +282,6 @@ int main(void) {
                 break; 
             }
         }
-        // 🛠️ 修正：無線が少し途切れた（タイムアウトした）だけで即時終了してしまうバグを撤去した状態をキープ
     }
 
     if (file) fclose(file); 
