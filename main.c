@@ -1,5 +1,4 @@
-#include <psputility_netconf.h>   // ネット接続ダイアログ用
-#include <psputility_msgdialog.h> // 終了ダイアログ用
+#include <psputility_netconf.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspnet.h>
@@ -40,7 +39,7 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// 🌐 ネット接続ダイアログ（前回の修正でここはバッチリです！）
+// ✨ 修正：.base. を完全に撤去し、直接構造体のメンバを指定するように直しました
 int show_network_connect_dialog(void) {
     pspUtilityNetconfData data;
     memset(&data, 0, sizeof(data));
@@ -69,13 +68,15 @@ int show_network_connect_dialog(void) {
         sceDisplayWaitVblankStart();
     }
 
+    // 接続状態の確認 (4 = STATE_GOTIP)
     int ap_status;
     if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) {
-        return 0; 
+        return 0; // 接続成功
     }
     return -1;
 }
 
+// 安全に終了メッセージを出して終了する関数（電源落ち防止）
 void safe_exit(const char *error_msg) {
     pspDebugScreenClear();
     printf("==========================================\n");
@@ -89,23 +90,20 @@ void safe_exit(const char *error_msg) {
     sceKernelExitGame();
 }
 
-// ⚠️ 修正：元々の正しい仕様（.message と .buttonPressed）に戻しました！
 int show_exit_dialog(void) {
     pspUtilityMsgDialogParams dialog;
     memset(&dialog, 0, sizeof(dialog));
     
     dialog.base.size = sizeof(dialog);
-    dialog.base.language = 1;    // 1 = 日本語
+    dialog.base.language = 1;    // 1 = 日本語（メッセージダイアログ側はbaseが必要）
     dialog.base.buttonSwap = 0;
     dialog.base.graphicsThread = 17;
     dialog.base.accessThread = 19;
     dialog.base.fontThread = 18;
     dialog.base.soundThread = 16;
     
-    dialog.mode = 1;             // 1 = TEXTモード
-    dialog.options = 0x10;       // 0x10 = YES/NO ボタンを表示
-
-    // 正しくは .message でした
+    dialog.mode = PSP_UTILITY_MSGDIALOG_MODE_TEXT;
+    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_TEXT; 
     snprintf(dialog.message, 512, "Do you want to quit the application?");
 
     sceUtilityMsgDialogInitStart(&dialog);
@@ -115,8 +113,7 @@ int show_exit_dialog(void) {
         if (status == 2) {       // 2 = VISIBLE
             sceUtilityMsgDialogUpdate(1);
         } else if (status == 3) { // 3 = FINISHED
-            // 正しくは .buttonPressed == 1 (YES) でした
-            if (dialog.buttonPressed == 1) { 
+            if (dialog.buttonPressed == 1) { // 1 = YES
                 sceUtilityMsgDialogShutdownStart();
                 return 1;
             }
@@ -167,6 +164,7 @@ int main(void) {
         return 0;
     }
 
+    // Wi-Fi接続画面を表示（WPA2プロファイル選択用）
     printf("[SYS] Opening Network Connection Dialog...\n");
     if (show_network_connect_dialog() < 0) {
         shutdown_network();
@@ -194,7 +192,7 @@ int main(void) {
         return 0;
     }
 
-    struct timeval timeout = {0, 100000}; 
+    struct timeval timeout = {0, 100000}; // タイムアウト0.1秒
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
     char buffer[PACKET_SIZE];
@@ -211,8 +209,10 @@ int main(void) {
     const int STATUS_LINE_Y = 8;
     const int PROGRESS_LINE_Y = 10;
 
+    // 現在のIPアドレスを取得して表示
     char my_ip[32] = "Unknown";
-    sceNetApctlGetInfo(8, my_ip); 
+    union SceNetApctlInfo apinfo;
+    if(sceNetApctlGetInfo(PSP_NET_APCTL_INFO_IP,&apinfo)==0){strncpy(my_ip,apinfo.ip,sizeof(my_ip)-1);my_ip[sizeof(my_ip)-1]=0;} 
     
     pspDebugScreenSetXY(0, 5);
     printf("[SYS] Wi-Fi Connected! IP: %s\n", my_ip);
