@@ -39,18 +39,19 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// 🌐 ネット接続ダイアログ（PSPSDKの仕様に合わせ .base 構造体を正しく使用）
+// 🌐 ネット接続ダイアログ（ChatGPTの指摘通り、.baseを完全に排除！）
 int show_network_connect_dialog(void) {
     pspUtilityNetconfData data;
     memset(&data, 0, sizeof(data));
     
-    data.base.size = sizeof(data);
-    data.base.language = 1;      // 1 = 日本語
-    data.base.buttonSwap = 0;    // 0 = ○ボタン決定
-    data.base.graphicsThread = 17;
-    data.base.accessThread = 19;
-    data.base.fontThread = 18;
-    data.base.soundThread = 16;
+    // NetconfDataには「base」がありません。直接指定します。
+    data.size = sizeof(data);
+    data.language = 1;      // 1 = 日本語
+    data.buttonSwap = 0;    // 0 = ○ボタン決定
+    data.graphicsThread = 17;
+    data.accessThread = 19;
+    data.fontThread = 18;
+    data.soundThread = 16;
     
     data.action = 2;             // 2 = アクセスポイントに接続するモード
 
@@ -90,6 +91,7 @@ void safe_exit(const char *error_msg) {
     sceKernelExitGame();
 }
 
+// ⚠️ メッセージダイアログ側は、仕様通り「.base」が必要です！
 int show_exit_dialog(void) {
     pspUtilityMsgDialogParams dialog;
     memset(&dialog, 0, sizeof(dialog));
@@ -103,8 +105,7 @@ int show_exit_dialog(void) {
     dialog.base.soundThread = 16;
     
     dialog.mode = PSP_UTILITY_MSGDIALOG_MODE_TEXT;
-    // 🛠️ 修正：標準的なYES/NOボタン表示用の定数名に変更
-    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_YESNO; 
+    dialog.options = PSP_UTILITY_MSGDIALOG_OPTION_YESNO; // YES/NOボタン表示
     snprintf(dialog.message, 512, "Do you want to quit the application?");
 
     sceUtilityMsgDialogInitStart(&dialog);
@@ -165,7 +166,7 @@ int main(void) {
         return 0;
     }
 
-    // Wi-Fi接続画面を表示
+    // Wi-Fi接続画面を表示（WPA2プロファイル選択用）
     printf("[SYS] Opening Network Connection Dialog...\n");
     if (show_network_connect_dialog() < 0) {
         shutdown_network();
@@ -274,3 +275,26 @@ int main(void) {
                 int percent = (int)(((long long)received_bytes_sum * 100) / total_file_size);
                 if (percent > 100) percent = 100;
                 snprintf(progress_msg, sizeof(progress_msg), "Progress: %d%% (%u / %u bytes)", percent, received_bytes_sum, total_file_size);
+            } else {
+                snprintf(progress_msg, sizeof(progress_msg), "Progress: ---%% (%u bytes received)", received_bytes_sum);
+            }
+            print_status_line(PROGRESS_LINE_Y, progress_msg);
+
+            // 🛠️ 安全ロジック：データが指定サイズまで届ききったら正常終了
+            if (total_file_size > 0 && received_bytes_sum >= total_file_size) {
+                if (file) fclose(file); 
+                file = NULL;
+                print_status_line(STATUS_LINE_Y, "[STATUS] Transfer complete! File saved successfully.");
+                sceKernelDelayThread(3000000); 
+                break; 
+            }
+        }
+        // 🛠️ 修正：無線が少し途切れた（タイムアウトした）だけで即時終了してしまうバグを撤去した状態をキープ
+    }
+
+    if (file) fclose(file); 
+    close(sock); 
+    shutdown_network(); 
+    sceKernelExitGame(); 
+    return 0; 
+}
