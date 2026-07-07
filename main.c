@@ -1,4 +1,4 @@
-#include <psputility_netconf.h> // 💡 構造体を認識させるためにこれは残します
+#include <psputility_netconf.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspnet.h>
@@ -39,36 +39,36 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// ✨ 修正：エラーの元になる定数を排除し、100%通る生の数値（リテラル）に変更
+// ✨ 修正：.base. を完全に撤去し、直接構造体のメンバを指定するように直しました
 int show_network_connect_dialog(void) {
     pspUtilityNetconfData data;
     memset(&data, 0, sizeof(data));
     
-    data.base.size = sizeof(data);
-    data.base.language = 1;      // 1 = 日本語 (生数)
-    data.base.buttonSwap = 0;    // 0 = ○ボタン決定
-    data.base.graphicsThread = 17;
-    data.base.accessThread = 19;
-    data.base.fontThread = 18;
-    data.base.soundThread = 16;
+    data.size = sizeof(data);
+    data.language = 1;      // 1 = 日本語
+    data.buttonSwap = 0;    // 0 = ○ボタン決定
+    data.graphicsThread = 17;
+    data.accessThread = 19;
+    data.fontThread = 18;
+    data.soundThread = 16;
     
-    data.action = 2;             // 2 = アクセスポイントに接続するモード (生数)
+    data.action = 2;             // 2 = アクセスポイントに接続するモード
 
     int ret = sceUtilityNetconfInitStart(&data);
     if (ret < 0) return ret;
 
     while (1) {
         int status = sceUtilityNetconfGetStatus();
-        if (status == 2) {       // 2 = VISIBLE (画面表示中)
+        if (status == 2) {       // 2 = VISIBLE
             sceUtilityNetconfUpdate(1);
-        } else if (status == 3) { // 3 = FINISHED (ダイアログ終了)
+        } else if (status == 3) { // 3 = FINISHED
             sceUtilityNetconfShutdownStart();
             break;
         }
         sceDisplayWaitVblankStart();
     }
 
-    // 接続状態の確認 (4 = STATE_GOTIP: IPアドレスの取得完了)
+    // 接続状態の確認 (4 = STATE_GOTIP)
     int ap_status;
     if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) {
         return 0; // 接続成功
@@ -95,7 +95,7 @@ int show_exit_dialog(void) {
     memset(&dialog, 0, sizeof(dialog));
     
     dialog.base.size = sizeof(dialog);
-    dialog.base.language = 1;    // 1 = 日本語
+    dialog.base.language = 1;    // 1 = 日本語（メッセージダイアログ側はbaseが必要）
     dialog.base.buttonSwap = 0;
     dialog.base.graphicsThread = 17;
     dialog.base.accessThread = 19;
@@ -113,7 +113,7 @@ int show_exit_dialog(void) {
         if (status == 2) {       // 2 = VISIBLE
             sceUtilityMsgDialogUpdate(1);
         } else if (status == 3) { // 3 = FINISHED
-            if (dialog.buttonPressed == 1) { // 1 = YESボタンが押された
+            if (dialog.buttonPressed == 1) { // 1 = YES
                 sceUtilityMsgDialogShutdownStart();
                 return 1;
             }
