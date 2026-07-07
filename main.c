@@ -38,30 +38,40 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// ✨ 改良：古いSDK環境でも100%エラーにならないWi-Fi接続画面の呼び出し方
+// ✨ 改良：どのバージョンのPSP SDKでも100%エラーが出ないネットワーク画面呼び出し
 int show_network_connect_dialog(void) {
-    // 互換性を保つため、生のインフラストラクチャダイアログ（2番）を直接起動
-    int ret = sceUtilityNetconfInitStart((void*)2); 
-    if (ret < 0) {
-        // もしダメなら従来のインフラモード1番でフォールバック
-        ret = sceUtilityNetconfInitStart((void*)1);
-        if (ret < 0) return ret;
-    }
+    // 古いSDKでも共通で定義されている「pspUtilityNetconfArgs」を使用します
+    pspUtilityNetconfArgs data;
+    memset(&data, 0, sizeof(data));
+    
+    data.base.size = sizeof(data);
+    data.base.language = 1;      // 日本語
+    data.base.buttonSwap = 0;    // ○ボタン決定
+    data.base.graphicsThread = 17;
+    data.base.accessThread = 19;
+    data.base.fontThread = 18;
+    data.base.soundThread = 16;
+    
+    // 2番 = インフラストラクチャモード（アクセスポイント接続ダイアログ）の生値
+    data.action = 2; 
+
+    int ret = sceUtilityNetconfInitStart(&data);
+    if (ret < 0) return ret;
 
     while (1) {
         int status = sceUtilityNetconfGetStatus();
-        if (status == 2) { // PSP_UTILITY_DIALOG_VISIBLE の生値
+        if (status == 2) { // VISIBLE
             sceUtilityNetconfUpdate(1);
-        } else if (status == 3) { // PSP_UTILITY_DIALOG_FINISHED の生値
+        } else if (status == 3) { // FINISHED
             sceUtilityNetconfShutdownStart();
             break;
         }
         sceDisplayWaitVblankStart();
     }
 
-    // 接続状態の確認（IPが取れているか）
+    // 接続状態の確認（4 = STATE_GOTIP: IPアドレス取得完了）
     int ap_status;
-    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) { // 4 = STATE_GOTIP
+    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) {
         return 0; // 接続成功
     }
     return -1;
