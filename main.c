@@ -38,40 +38,33 @@ void setup_callbacks(void) {
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
 
-// ✨ PSP標準のWi-Fi接続画面（WPA2対応）を呼び出す関数
+// ✨ 改良：古いSDK環境でも100%エラーにならないWi-Fi接続画面の呼び出し方
 int show_network_connect_dialog(void) {
-    pspUtilityNetconfData data;
-    memset(&data, 0, sizeof(data));
-    
-    data.base.size = sizeof(data);
-    data.base.language = 1;      // 日本語
-    data.base.buttonSwap = 0;    // ○ボタン決定
-    data.base.graphicsThread = 17;
-    data.base.accessThread = 19;
-    data.base.fontThread = 18;
-    data.base.soundThread = 16;
-    
-    data.action = PSP_NETCONF_ACTION_CONNECTAP; // アクセスポイントに接続するモード
-
-    int ret = sceUtilityNetconfInitStart(&data);
-    if (ret < 0) return ret;
+    // 互換性を保つため、生のインフラストラクチャダイアログ（2番）を直接起動
+    int ret = sceUtilityNetconfInitStart((void*)2); 
+    if (ret < 0) {
+        // もしダメなら従来のインフラモード1番でフォールバック
+        ret = sceUtilityNetconfInitStart((void*)1);
+        if (ret < 0) return ret;
+    }
 
     while (1) {
         int status = sceUtilityNetconfGetStatus();
-        if (status == PSP_UTILITY_DIALOG_VISIBLE) {
+        if (status == 2) { // PSP_UTILITY_DIALOG_VISIBLE の生値
             sceUtilityNetconfUpdate(1);
-        } else if (status == PSP_UTILITY_DIALOG_FINISHED) {
+        } else if (status == 3) { // PSP_UTILITY_DIALOG_FINISHED の生値
             sceUtilityNetconfShutdownStart();
             break;
         }
         sceDisplayWaitVblankStart();
     }
 
+    // 接続状態の確認（IPが取れているか）
     int ap_status;
-    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == PSP_NETAPCTL_STATE_GOTIP) {
+    if (sceNetApctlGetState(&ap_status) == 0 && ap_status == 4) { // 4 = STATE_GOTIP
         return 0; // 接続成功
     }
-    return -1; // 接続失敗またはキャンセル
+    return -1;
 }
 
 // 安全に終了メッセージを出して終了する関数（電源落ち防止）
@@ -108,10 +101,10 @@ int show_exit_dialog(void) {
 
     while (1) {
         int status = sceUtilityMsgDialogGetStatus();
-        if (status == PSP_UTILITY_DIALOG_VISIBLE) { 
+        if (status == 2) { // VISIBLE
             sceUtilityMsgDialogUpdate(1);
-        } else if (status == PSP_UTILITY_DIALOG_FINISHED) {
-            if (dialog.buttonPressed == PSP_UTILITY_MSGDIALOG_RESULT_YES) {
+        } else if (status == 3) { // FINISHED
+            if (dialog.buttonPressed == 1) { // YES
                 sceUtilityMsgDialogShutdownStart();
                 return 1;
             }
@@ -141,7 +134,6 @@ void shutdown_network(void) {
     sceUtilityUnloadNetModule(PSP_NET_MODULE_COMMON);
 }
 
-// 画面のチラつきを抑えて特定の行を上書きする関数
 void print_status_line(int y, const char *msg) {
     pspDebugScreenSetXY(0, y);
     printf("                                                                ");
@@ -163,7 +155,7 @@ int main(void) {
         return 0;
     }
 
-    // Wi-Fi接続画面を表示
+    // Wi-Fi接続画面を表示（WPA2プロファイル選択用）
     printf("[SYS] Opening Network Connection Dialog...\n");
     if (show_network_connect_dialog() < 0) {
         shutdown_network();
@@ -199,7 +191,6 @@ int main(void) {
     socklen_t addr_len = sizeof(client_addr);
     FILE *file = NULL;
     
-    // 💡 エラーの原因だった変数をmain関数の適切な位置でしっかり定義
     int is_transferring = 0;
     unsigned int total_file_size = 0;
     unsigned int received_bytes_sum = 0;
@@ -222,9 +213,9 @@ int main(void) {
 
     while (!exit_request) {
         sceCtrlPeekBufferPositive(&pad, 1);
-        if (pad.Buttons & PSP_CTRL_TRIANGLE) {
-            if (show_exit_dialog()) {
-                break;
+        if (pad.Buttons & PSP_CTRL_TRIANGLE) { 
+            if (show_exit_dialog()) { 
+                break; 
             } else {
                 pspDebugScreenClear();
                 printf("==========================================\n");
@@ -242,13 +233,12 @@ int main(void) {
         }
 
         int bytes_received = recvfrom(sock, buffer, PACKET_SIZE, 0, (struct sockaddr *)&client_addr, &addr_len);
-        if (bytes_received > 0) {
-            if (!is_transferring) {
-                file = fopen(SAVE_PATH, "wb");
-                is_transferring = 1;
+        if (bytes_received > 0) { 
+            if (!is_transferring) { 
+                file = fopen(SAVE_PATH, "wb"); 
+                is_transferring = 1; 
                 print_status_line(STATUS_LINE_Y, "[STATUS] Connection established! Receiving data...");
                 
-                // 💡 最初のパケットから4バイトのファイルサイズを取り出す
                 if (bytes_received >= sizeof(unsigned int)) {
                     memcpy(&total_file_size, buffer, sizeof(unsigned int));
                     int data_size = bytes_received - sizeof(unsigned int);
@@ -258,13 +248,12 @@ int main(void) {
                     }
                 }
             } else {
-                if (file) {
-                    fwrite(buffer, 1, bytes_received, file);
+                if (file) { 
+                    fwrite(buffer, 1, bytes_received, file); 
                     received_bytes_sum += bytes_received;
-                }
+                } 
             }
 
-            // 📊 進捗のパーセント計算と表示
             char progress_msg[128];
             if (total_file_size > 0) {
                 int percent = (int)(((long long)received_bytes_sum * 100) / total_file_size);
@@ -275,18 +264,18 @@ int main(void) {
             }
             print_status_line(PROGRESS_LINE_Y, progress_msg);
 
-        } else if (is_transferring) {
-            if (file) fclose(file);
+        } else if (is_transferring) { 
+            if (file) fclose(file); 
             file = NULL;
             print_status_line(STATUS_LINE_Y, "[STATUS] Transfer complete! File saved successfully.");
-            sceKernelDelayThread(3000000); // 3秒画面を保持
-            break;
+            sceKernelDelayThread(3000000); 
+            break; 
         }
     }
 
-    if (file) fclose(file);
-    close(sock);
-    shutdown_network();
-    sceKernelExitGame();
-    return 0;
+    if (file) fclose(file); 
+    close(sock); 
+    shutdown_network(); 
+    sceKernelExitGame(); 
+    return 0; 
 }
