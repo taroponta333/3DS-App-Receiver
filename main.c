@@ -92,6 +92,14 @@ int main(void)
 
     ret = Dialog_ShowNetwork();
 
+if(ret == 0)
+{
+    pspDebugScreenPrintf("Connected!\n");
+}
+else
+{
+    pspDebugScreenPrintf("Cancelled.\n");
+}
     if(ret < 0)
     {
         pspDebugScreenPrintf("Network Dialog Cancelled\n");
