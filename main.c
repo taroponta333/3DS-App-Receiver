@@ -90,7 +90,7 @@ int main(void)
 
     /* 接続ダイアログ */
 
-    ret = Dialog_ShowNetwork();
+    /*ret = Dialog_ShowNetwork();*/
 
 if(ret == 0)
 {
