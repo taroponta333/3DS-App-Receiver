@@ -12,60 +12,68 @@
 #include "network.h"
 
 /*=========================================================
-    ネットワーク初期化
+    Network Initialization
 =========================================================*/
 
 int Network_Init(void)
 {
     int ret;
 
-    ret = sceNetInit(
-        128 * 1024,
-        42,
-        4 * 1024,
-        42,
-        4 * 1024);
+    /* Initialize network with standard parameters for user mode */
+    ret = sceNetInit(128 * 1024, 42, 4 * 1024, 42, 4 * 1024);
 
     if(ret < 0)
+    {
         return ret;
+    }
 
+    /* Initialize inet module */
     ret = sceNetInetInit();
 
     if(ret < 0)
+    {
+        sceNetTerm();
         return ret;
+    }
 
+    /* Initialize resolver */
     ret = sceNetResolverInit();
 
     if(ret < 0)
+    {
+        sceNetInetTerm();
+        sceNetTerm();
         return ret;
+    }
 
-    ret = sceNetApctlInit(
-        0x1800,
-        48);
+    /* Initialize access control - adjust stack size for user mode */
+    ret = sceNetApctlInit(0x8000, 48);
 
     if(ret < 0)
+    {
+        sceNetResolverTerm();
+        sceNetInetTerm();
+        sceNetTerm();
         return ret;
+    }
 
     return 0;
 }
 
 /*=========================================================
-    ネットワーク終了
+    Network Shutdown
 =========================================================*/
 
 void Network_Shutdown(void)
 {
     sceNetApctlTerm();
-
     sceNetResolverTerm();
-
     sceNetInetTerm();
-
     sceNetTerm();
 }
 
 /*=========================================================
-    接続確認
+    Connection Check
 =========================================================*/
 
 int Network_IsConnected(void)
@@ -79,7 +87,7 @@ int Network_IsConnected(void)
 }
 
 /*=========================================================
-    接続待機
+    Wait for Connection
 =========================================================*/
 
 int Network_WaitConnection(void)
@@ -93,7 +101,7 @@ int Network_WaitConnection(void)
 }
 
 /*=========================================================
-    IP取得
+    Get IP Address
 =========================================================*/
 
 int Network_GetIP(char *ip)
@@ -102,9 +110,7 @@ int Network_GetIP(char *ip)
 
     memset(&info, 0, sizeof(info));
 
-    if(sceNetApctlGetInfo(
-        PSP_NET_APCTL_INFO_IP,
-        &info) < 0)
+    if(sceNetApctlGetInfo(PSP_NET_APCTL_INFO_IP, &info) < 0)
     {
         return -1;
     }
@@ -116,7 +122,7 @@ int Network_GetIP(char *ip)
 }
 
 /*=========================================================
-    IP表示
+    Print IP Address
 =========================================================*/
 
 void Network_PrintIP(void)
