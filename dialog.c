@@ -14,6 +14,7 @@ int Dialog_ShowNetwork(void)
 {
     int ret;
     pspUtilityNetconfData dialog;
+    int timeout = 0;
 
     memset(&dialog, 0, sizeof(dialog));
 
@@ -31,19 +32,11 @@ int Dialog_ShowNetwork(void)
         return -1;
     }
 
-    /* Setup dialog parameters */
+    /* Setup dialog parameters - use minimal configuration */
     dialog.base.size = sizeof(dialog);
-    dialog.base.language = PSP_SYSTEMPARAM_LANGUAGE_ENGLISH;
     dialog.base.buttonSwap = PSP_UTILITY_ACCEPT_CROSS;
-    dialog.base.graphicsThread = 17;
-    dialog.base.accessThread = 19;
-    dialog.base.fontThread = 18;
-    dialog.base.soundThread = 16;
 
     dialog.action = PSP_NETCONF_ACTION_CONNECTAP;
-    dialog.hotspot = 0;
-    dialog.hotspot_connected = 0;
-    dialog.wifisp = 0;
 
     /* Start the dialog */
     ret = sceUtilityNetconfInitStart(&dialog);
@@ -54,7 +47,7 @@ int Dialog_ShowNetwork(void)
         return -1;
     }
 
-    /* Dialog loop */
+    /* Dialog loop with timeout protection */
     while(1)
     {
         int status = sceUtilityNetconfGetStatus();
@@ -65,6 +58,7 @@ int Dialog_ShowNetwork(void)
             case PSP_UTILITY_DIALOG_INIT:
             case PSP_UTILITY_DIALOG_VISIBLE:
                 sceUtilityNetconfUpdate(1);
+                timeout = 0;  /* Reset timeout on active status */
                 break;
 
             case PSP_UTILITY_DIALOG_QUIT:
@@ -77,9 +71,19 @@ int Dialog_ShowNetwork(void)
                 return 0;
 
             default:
+                /* Unknown status - cleanup and exit */
                 sceUtilityUnloadNetModule(PSP_NET_MODULE_INET);
                 sceUtilityUnloadNetModule(PSP_NET_MODULE_COMMON);
                 return 0;
+        }
+
+        /* Timeout protection - prevent infinite loop */
+        timeout++;
+        if(timeout > 1000)
+        {
+            sceUtilityUnloadNetModule(PSP_NET_MODULE_INET);
+            sceUtilityUnloadNetModule(PSP_NET_MODULE_COMMON);
+            return -1;
         }
 
         sceDisplayWaitVblankStart();
