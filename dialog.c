@@ -1,11 +1,10 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspdisplay.h>
 
 #include <psputility.h>
-#include <psputility_netparam.h>
-
-#include <pspnet.h>
-#include <pspnet_apctl.h>
+#include <psputility_netconf.h>
+#include <psputility_modules.h>
 
 #include <string.h>
 
@@ -14,7 +13,7 @@
 int Dialog_ShowNetwork(void)
 {
     int ret;
-    SceUtilityNetconfData dialog;
+    pspUtilityNetconfData dialog;
 
     memset(&dialog, 0, sizeof(dialog));
 
