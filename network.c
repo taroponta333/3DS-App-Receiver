@@ -109,7 +109,8 @@ int Network_GetIP(char *ip)
         return -1;
     }
 
-    strcpy(ip, info.ip);
+    strncpy(ip, info.ip, 15);
+    ip[15] = '\0';
 
     return 0;
 }
